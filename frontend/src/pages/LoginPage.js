@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Route, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Button, Grid, Box, Typography, Paper, Checkbox, FormControlLabel, TextField, CssBaseline, IconButton, InputAdornment, CircularProgress, Backdrop } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
@@ -9,6 +9,7 @@ import { LightPurpleButton } from '../components/buttonStyles';
 import styled from 'styled-components';
 import { loginUser } from '../redux/userRelated/userHandle';
 import Popup from '../components/Popup';
+
 
 const defaultTheme = createTheme();
 
@@ -24,6 +25,10 @@ const LoginPage = ({ role }) => {
     const [loader, setLoader] = useState(false)
     const [showPopup, setShowPopup] = useState(false);
     const [message, setMessage] = useState("");
+    const [loginAttempts, setLoginAttempts] = useState(0);
+    const [isLocked, setIsLocked] = useState(false);
+    const [lockTimer, setLockTimer] = useState(30);
+
 
     const [emailError, setEmailError] = useState(false);
     const [passwordError, setPasswordError] = useState(false);
@@ -33,6 +38,10 @@ const LoginPage = ({ role }) => {
     const handleSubmit = (event) => {
         event.preventDefault();
 
+        if (isLocked) return; // prevent login if locked
+
+        // your existing validation logic
+        let valid = true;
         if (role === "Student") {
             const rollNum = event.target.rollNumber.value;
             const studentName = event.target.studentName.value;
@@ -42,28 +51,54 @@ const LoginPage = ({ role }) => {
                 if (!rollNum) setRollNumberError(true);
                 if (!studentName) setStudentNameError(true);
                 if (!password) setPasswordError(true);
-                return;
+                valid = false;
             }
-            const fields = { rollNum, studentName, password }
-            setLoader(true)
-            dispatch(loginUser(fields, role))
-        }
 
-        else {
+            if (valid) {
+                setLoader(true);
+                dispatch(loginUser({ rollNum, studentName, password }, role));
+            }
+        } else {
             const email = event.target.email.value;
             const password = event.target.password.value;
 
             if (!email || !password) {
                 if (!email) setEmailError(true);
                 if (!password) setPasswordError(true);
-                return;
+                valid = false;
             }
 
-            const fields = { email, password }
-            setLoader(true)
-            dispatch(loginUser(fields, role))
+            if (valid) {
+                setLoader(true);
+                dispatch(loginUser({ email, password }, role));
+            }
+        }
+
+        // increase attempts on failed login
+        if (!valid || status === 'failed') {
+            const newAttempts = loginAttempts + 1;
+            setLoginAttempts(newAttempts);
+            console.log(newAttempts);
+
+            if (newAttempts >= 3) {
+                setIsLocked(true);
+                setLockTimer(30);
+
+                const interval = setInterval(() => {
+                    setLockTimer((prev) => {
+                        if (prev <= 1) {
+                            clearInterval(interval);
+                            setIsLocked(false);
+                            setLoginAttempts(0);
+                            return 30;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            }
         }
     };
+
 
     const handleInputChange = (event) => {
         const { name } = event.target;
@@ -222,16 +257,17 @@ const LoginPage = ({ role }) => {
                                     Forgot password?
                                 </StyledLink>
                             </Grid>
+
                             <LightPurpleButton
                                 type="submit"
                                 fullWidth
                                 variant="contained"
                                 sx={{ mt: 3 }}
+                                disabled={loader || isLocked}
                             >
-                                {loader ?
-                                    <CircularProgress size={24} color="inherit" />
-                                    : "Login"}
+                                {isLocked ? `TRY AGAIN IN (${lockTimer}s)` : loader ? <CircularProgress size={24} color="inherit" /> : "Login"}
                             </LightPurpleButton>
+
                             <Button
                                 fullWidth
                                 onClick={guestModeHandler}
@@ -240,6 +276,28 @@ const LoginPage = ({ role }) => {
                             >
                                 Login as Guest
                             </Button>
+                            <Box sx={{ mt: 3, mb: 2, textAlign: 'center' }}>
+                                <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                                    Or login with Google
+                                </Typography>
+                                <Button
+                                    variant="outlined"
+                                    fullWidth
+                                    href="http://localhost:5000/auth/google"
+                                    sx={{
+                                        textTransform: 'none',
+                                        borderColor: '#4285F4',
+                                        color: '#4285F4',
+                                        fontWeight: 500,
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(66,133,244,0.1)',
+                                            borderColor: '#4285F4',
+                                        },
+                                    }}
+                                >
+                                    Login with Google
+                                </Button>
+                            </Box>
                             {role === "Admin" &&
                                 <Grid container>
                                     <Grid>

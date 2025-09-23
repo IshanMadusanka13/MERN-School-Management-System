@@ -2,6 +2,9 @@ const express = require("express")
 const cors = require("cors")
 const mongoose = require("mongoose")
 const dotenv = require("dotenv")
+const passport = require('passport');
+const session = require("express-session");
+require('./oauth/passport'); // Ensure passport configuration is loaded
 // const bodyParser = require("body-parser")
 const app = express()
 const Routes = require("./routes/route.js")
@@ -17,12 +20,24 @@ app.use(express.json({ limit: '10mb' }))
 app.use(cors())
 
 mongoose
-    .connect(process.env.MONGO_URL, {
+    .connect(process.env.MONGO_URI, {
         useNewUrlParser: true,
         useUnifiedTopology: true
     })
     .then(console.log("Connected to MongoDB"))
     .catch((err) => console.log("NOT CONNECTED TO NETWORK", err))
+
+    app.use(
+  session({
+    secret: "1235586423", // change to strong secret, keep in .env
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false }, // set secure: true if using HTTPS
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+
 
 app.use('/', Routes);
 

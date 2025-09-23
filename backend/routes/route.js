@@ -1,5 +1,6 @@
 const router = require('express').Router();
 
+const passport = require('passport');
 // const { adminRegister, adminLogIn, deleteAdmin, getAdminDetail, updateAdmin } = require('../controllers/admin-controller.js');
 
 const { adminRegister, adminLogIn, getAdminDetail} = require('../controllers/admin-controller.js');
@@ -115,5 +116,39 @@ router.get("/Subject/:id", getSubjectDetail)
 router.delete("/Subject/:id", deleteSubject)
 router.delete("/Subjects/:id", deleteSubjects)
 router.delete("/SubjectsClass/:id", deleteSubjectsByClass)
+
+
+router.get(
+  '/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+// Callback after Google authenticates the user
+router.get(
+  '/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    const jwt = require('jsonwebtoken');
+
+    // Build payload from your user object
+    const payload = {
+      _id: req.user._id,
+      name: req.user.name,
+      email: req.user.email,
+      role: req.user.role,
+      schoolName: req.user.schoolName,
+    };
+
+    // Sign the token
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: '1h',
+    });
+
+    // Redirect back to frontend with the token
+    res.redirect(`http://localhost:3000/auth/success?token=${token}`);
+  }
+);
+
+
 
 module.exports = router;
