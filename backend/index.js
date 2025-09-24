@@ -44,12 +44,12 @@ if (!process.env.MONGO_URL) {
 }
 
 mongoose
-    .connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true
-    })
-    .then(console.log("Connected to MongoDB"))
-    .catch((err) => console.log("NOT CONNECTED TO NETWORK", err))
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => console.log("❌ Database connection error", err));
 
     app.use(
   session({
@@ -65,7 +65,7 @@ app.use(passport.session());
 
 app.use(logger);
 
-app.use('/', Routes);
+app.use("/", Routes);
 
 app.get('/', (req, res) => {
     res.send('MERN School Management System API is running securely!');
@@ -78,5 +78,5 @@ const credentials = { key: privateKey, cert: certificate };
 const httpsServer = https.createServer(credentials, app);
 
 httpsServer.listen(PORT, () => {
-    console.log(`Secure server started at port no. ${PORT}`);
-});
+  console.log(` Secure server started at port ${PORT}`);;
+});;
