@@ -4,6 +4,7 @@ const dns = require('dns').promises;
 const net = require('net');
 const axios = require('axios');
 
+// IPv4 private ranges
 const PRIVATE_RANGES = [
   ['10.0.0.0', '10.255.255.255'],
   ['172.16.0.0', '172.31.255.255'],
@@ -13,15 +14,13 @@ const PRIVATE_RANGES = [
 ];
 
 function ipv4ToInt(ip) {
-  return ip.split('.').reduce((acc, p) => (acc << 8) + parseInt(p, 10), 0);
+  return ip.split('.').reduce((acc, p) => (acc << 8) + parseInt(p, 10), 0) >>> 0;
 }
 
 function inPrivateRange(ip) {
-  if (net.isIPv6(ip)) return true; // Block IPv6
-  const ipInt = ipv4ToInt(ip);
-  return PRIVATE_RANGES.some(([start, end]) => {
-    return ipv4ToInt(start) <= ipInt && ipInt <= ipv4ToInt(end);
-  });
+  if (net.isIPv6(ip)) return true; // block IPv6 by default (easier)
+  const v = ipv4ToInt(ip);
+  return PRIVATE_RANGES.some(([s, e]) => ipv4ToInt(s) <= v && v <= ipv4ToInt(e));
 }
 
 async function isSafeUrl(userUrl) {
@@ -29,8 +28,7 @@ async function isSafeUrl(userUrl) {
     const parsed = new URL(userUrl);
     if (!['http:', 'https:'].includes(parsed.protocol)) return false;
 
-    const hostname = parsed.hostname;
-    const addrs = await dns.lookup(hostname, { all: true });
+    const addrs = await dns.lookup(parsed.hostname, { all: true });
     for (const a of addrs) {
       if (inPrivateRange(a.address)) return false;
     }
@@ -40,15 +38,22 @@ async function isSafeUrl(userUrl) {
   }
 }
 
-async function safeFetch(userUrl) {
+async function safeFetch(userUrl, opts = {}) {
   if (!await isSafeUrl(userUrl)) {
     const err = new Error('URL not allowed');
     err.code = 'SSRF_BLOCKED';
     throw err;
   }
 
-  const resp = await axios.get(userUrl, { timeout: 5000, maxRedirects: 0 });
-  return typeof resp.data === 'string' ? resp.data.slice(0, 2000) : resp.data;
+  const axiosOpts = {
+    timeout: opts.timeout || 5000,
+    maxRedirects: 0,
+    responseType: 'text',
+    validateStatus: s => s >= 200 && s < 400
+  };
+
+  const r = await axios.get(userUrl, axiosOpts);
+  return typeof r.data === 'string' ? r.data.slice(0, 2000) : r.data;
 }
 
-module.exports = { safeFetch };
+module.exports = { isSafeUrl, safeFetch };
