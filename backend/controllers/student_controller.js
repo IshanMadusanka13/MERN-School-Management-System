@@ -58,12 +58,12 @@ const studentLogIn = async (req, res) => {
 
 const getStudents = async (req, res) => {
     try {
-        let students = await Student.find({ school: req.params.id }).populate("sclassName", "sclassName");
+        let students = await Student.find({ school: req.params.id })
+            .populate("sclassName", "sclassName")
+            .select('name rollNum sclassName email school -_id'); // ✅ ONLY safe fields
+
         if (students.length > 0) {
-            let modifiedStudents = students.map((student) => {
-                return { ...student._doc, password: undefined };
-            });
-            res.send(modifiedStudents);
+            res.send(students);
         } else {
             res.send({ message: "No students found" });
         }
@@ -72,18 +72,31 @@ const getStudents = async (req, res) => {
     }
 };
 
+
 const getStudentDetail = async (req, res) => {
     try {
         let student = await Student.findById(req.params.id)
             .populate("school", "schoolName")
             .populate("sclassName", "sclassName")
             .populate("examResult.subName", "subName")
-            .populate("attendance.subName", "subName sessions");
+            .populate("attendance.subName", "subName sessions")
+            .select('-password -address -phone -parentInfo -medicalInfo -emergencyContact'); // ✅ Exclude sensitive fields
+
         if (student) {
-            student.password = undefined;
-            res.send(student);
-        }
-        else {
+            // Additional safety filter
+            const safeStudentData = {
+                _id: student._id,
+                name: student.name,
+                rollNum: student.rollNum,
+                email: student.email,
+                class: student.sclassName,
+                school: student.school,
+                examResult: student.examResult,
+                attendance: student.attendance
+                // Explicitly exclude sensitive data
+            };
+            res.send(safeStudentData);
+        } else {
             res.send({ message: "No student found" });
         }
     } catch (err) {
