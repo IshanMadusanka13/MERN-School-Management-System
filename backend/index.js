@@ -6,10 +6,12 @@ const helmet = require("helmet"); // Added Helmet for secure HTTP headers
 const rateLimit = require("express-rate-limit"); //  Added rate limiting
 const xss = require("xss-clean"); // Prevent XSS attacks
 const mongoSanitize = require("express-mongo-sanitize"); //  Prevent NoSQL Injection
+const fetchDataRoute = require("./routes/fetchData");
+
 
 const app = express();
 const Routes = require("./routes/route.js");
-
+app.use("/api", fetchDataRoute);
 const PORT = process.env.PORT || 5000;
 
 dotenv.config();
