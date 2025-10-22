@@ -12,7 +12,7 @@ const FetchDataDemo = () => {
     setError(null);
 
     try {
-      const res = await axios.get("http://localhost:5000/fetch", {
+      const res = await axios.get("https://localhost:5000/fetch", {
         params: { url },
       });
       setResponse(res.data);

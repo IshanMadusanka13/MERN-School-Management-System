@@ -7,7 +7,7 @@ import {
     postDone,
     doneSuccess
 } from './teacherSlice';
-const REACT_APP_BASE_URL = "http://localhost:5000";
+const REACT_APP_BASE_URL = "https://localhost:5000";
 export const getAllTeachers = (id) => async (dispatch) => {
     dispatch(getRequest());
 
