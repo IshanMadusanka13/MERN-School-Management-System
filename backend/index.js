@@ -39,7 +39,7 @@ app.use(cors({
 }));
 
 // Validate environment variables
-if (!process.env.MONGO_URL) {
+if (!process.env.MONGO_URI) {
     throw new Error('MONGO_URL is not set in environment variables');
 }
 

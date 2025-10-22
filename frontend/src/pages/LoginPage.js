@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, Route, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Button, Grid, Box, Typography, Paper, Checkbox, FormControlLabel, TextField, CssBaseline, IconButton, InputAdornment, CircularProgress, Backdrop } from '@mui/material';
@@ -29,11 +29,35 @@ const LoginPage = ({ role }) => {
     const [isLocked, setIsLocked] = useState(false);
     const [lockTimer, setLockTimer] = useState(30);
 
+    // refs to keep latest values accessible inside effects/intervals
+    const loginAttemptsRef = useRef(loginAttempts);
+    const prevStatusRef = useRef(null);
+    const intervalRef = useRef(null);
 
     const [emailError, setEmailError] = useState(false);
     const [passwordError, setPasswordError] = useState(false);
     const [rollNumberError, setRollNumberError] = useState(false);
     const [studentNameError, setStudentNameError] = useState(false);
+
+    // helper to start lock timer (single interval)
+    const startLock = () => {
+        if (intervalRef.current) return; // already running
+        setIsLocked(true);
+        setLockTimer(30);
+        intervalRef.current = setInterval(() => {
+            setLockTimer((prev) => {
+                if (prev <= 1) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                    setIsLocked(false);
+                    setLoginAttempts(0);
+                    loginAttemptsRef.current = 0;
+                    return 30;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
 
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -74,31 +98,80 @@ const LoginPage = ({ role }) => {
             }
         }
 
-        // increase attempts on failed login
-        if (!valid || status === 'failed') {
-            const newAttempts = loginAttempts + 1;
+        // count client-side invalid attempts (only when validation fails locally)
+        if (!valid) {
+            const newAttempts = loginAttemptsRef.current + 1;
             setLoginAttempts(newAttempts);
-            console.log(newAttempts);
+            loginAttemptsRef.current = newAttempts;
 
             if (newAttempts >= 3) {
-                setIsLocked(true);
-                setLockTimer(30);
-
-                const interval = setInterval(() => {
-                    setLockTimer((prev) => {
-                        if (prev <= 1) {
-                            clearInterval(interval);
-                            setIsLocked(false);
-                            setLoginAttempts(0);
-                            return 30;
-                        }
-                        return prev - 1;
-                    });
-                }, 1000);
+                startLock();
             }
         }
     };
 
+    // keep ref synced when loginAttempts changes
+    useEffect(() => {
+        loginAttemptsRef.current = loginAttempts;
+    }, [loginAttempts]);
+
+    useEffect(() => {
+        // React to status changes from Redux:
+        if (status === 'success' || currentUser !== null) {
+            // reset attempts and any lock on successful login
+            setLoginAttempts(0);
+            loginAttemptsRef.current = 0;
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+            setIsLocked(false);
+
+            if (currentRole === 'Admin') {
+                navigate('/Admin/dashboard');
+            }
+            else if (currentRole === 'Student') {
+                navigate('/Student/dashboard');
+            } else if (currentRole === 'Teacher') {
+                navigate('/Teacher/dashboard');
+            }
+        }
+        else if (status === 'failed') {
+            // increment attempts only when status transitions to 'failed'
+            if (prevStatusRef.current !== 'failed') {
+                const newAttempts = loginAttemptsRef.current + 1;
+                setLoginAttempts(newAttempts);
+                loginAttemptsRef.current = newAttempts;
+
+                if (newAttempts >= 3) {
+                    startLock();
+                }
+            }
+
+            setMessage(response)
+            setShowPopup(true)
+            setLoader(false)
+        }
+        else if (status === 'error') {
+            setMessage("Network Error")
+            setShowPopup(true)
+            setLoader(false)
+            setGuestLoader(false)
+        }
+
+        // track previous status to avoid duplicate counting
+        prevStatusRef.current = status;
+    }, [status, currentRole, navigate, error, response, currentUser]);
+
+    // cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
+    }, []);
 
     const handleInputChange = (event) => {
         const { name } = event.target;
@@ -283,7 +356,7 @@ const LoginPage = ({ role }) => {
                                 <Button
                                     variant="outlined"
                                     fullWidth
-                                    href="http://localhost:5000/auth/google"
+                                    href="https://localhost:5000/auth/google"
                                     sx={{
                                         textTransform: 'none',
                                         borderColor: '#4285F4',

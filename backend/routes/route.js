@@ -101,7 +101,7 @@ router.get(
 // Callback after Google authenticates the user
 router.get(
   '/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  passport.authenticate('google', { failureRedirect: '/login', session: false }),
   (req, res) => {
     const jwt = require('jsonwebtoken');
 
@@ -119,11 +119,68 @@ router.get(
       expiresIn: '1h',
     });
 
-    // Redirect back to frontend with the token
-    res.redirect(`http://localhost:3000/auth/success?token=${token}`);
+    // Set token in a secure, HttpOnly cookie suitable for cross-site usage.
+    // Browsers require SameSite=None and Secure for cross-site cookies.
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true, // require HTTPS; ok because callback used https in dev
+      sameSite: 'None', // allow cross-site cookie to be sent to frontend
+      maxAge: 60 * 60 * 1000, // 1 hour
+      path: '/',
+    };
+
+    res.cookie('token', token, cookieOptions);
+
+    // Redirect to frontend without token in URL
+    res.redirect('https://localhost:3000/auth/success');
   }
 );
 
+// Provide an endpoint frontend can call to get the authenticated user from the cookie.
+// This verifies the JWT stored in the 'token' cookie (or Authorization header as fallback).
+router.get('/auth/me', (req, res) => {
+  const jwt = require('jsonwebtoken');
 
+  // Allow credentials from the frontend origin for development (adjust in production)
+  res.setHeader('Access-Control-Allow-Origin', 'https://localhost:3000');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  // Try cookie-parser result first, then raw header parsing, then Authorization bearer
+  let token = req.cookies && req.cookies.token;
+
+  if (!token && req.headers && req.headers.cookie) {
+    const cookies = req.headers.cookie.split(';').map(c => c.trim());
+    const tokenCookie = cookies.find(c => c.startsWith('token='));
+    if (tokenCookie) {
+      token = decodeURIComponent(tokenCookie.split('=')[1]);
+    }
+  }
+
+  if (!token && req.headers && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  if (!token) {
+    return res.status(401).json({ message: 'Not authenticated' });
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    return res.json({ user: payload });
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid token' });
+  }
+});
+
+// Optional: clear the auth cookie on logout
+router.post('/auth/logout', (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'None',
+    path: '/',
+  });
+  res.json({ message: 'Logged out' });
+});
 
 module.exports = router;
